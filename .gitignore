@@ -1,0 +1,9 @@
+# Runtime cache of the document generator (dompdf fonts / temp files)
+documents/storage/*
+!documents/storage/.gitkeep
+!documents/storage/.htaccess
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
