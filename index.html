@@ -58,22 +58,16 @@
   </style>
 
   <script>
-
-    function checkpwd() {
-      var pwd = document.getElementById('pwd').value;
-      if (pwd == "1234") {
-        document.getElementById('password').style.display = 'none';
-        document.getElementById('content').style.display = 'block';
-      } else {
-        alert("Incorrect Password! Try Again!!!");
+    // Show the admin popup with an error message when the server rejected the password.
+    window.addEventListener('DOMContentLoaded', function () {
+      if (/[?&]login=failed/.test(window.location.search)) {
+        var err = document.getElementById('loginError');
+        if (err) { err.style.display = 'block'; }
+        if (window.location.hash !== '#popup') { window.location.hash = '#popup'; }
+        var pwd = document.getElementById('pwd');
+        if (pwd) { pwd.focus(); }
       }
-    }
-
-    function display(id) {
-      document.getElementById('invoice').style.display = 'none';
-      document.getElementById('quote').style.display = 'none';
-      document.getElementById(id).style.display = 'block';
-    }
+    });
   </script>
 
 </head>
@@ -82,37 +76,14 @@
   <div id="popup" class="popup">
     <div class="popup-content">
       <h2>Oshin Services</h2>
-      <div id="password">
+      <form id="adminLoginForm" method="post" action="documents/login.php" autocomplete="off">
         <p>Enter Your Password:</p>
-        <input type="password" name="pwd" id="pwd">
+        <input type="password" name="password" id="pwd" required autocomplete="current-password">
+        <p id="loginError" class="text-danger mt-2 mb-0" style="display: none;">Incorrect Password! Try Again!!!</p>
         <p>&nbsp;</p>
-        <button class="btn btn-primary py-3 px-5" onclick="checkpwd()">
-          Sign In</button>
-      </div>
-      <div id="content" style="display: none;">
-        <p>&nbsp;</p>
-        <button class="btn btn-primary py-3 px-5" onclick="display('invoice')">
-          Invoice Generator</button>
-
-        <button class="btn btn-primary py-3 px-5" onclick="display('quote')"> Quotation Generator</button>
-
-        <p>&nbsp;</p>
-        <div style="display: none;" id="invoice">
-          <h3>Select Organization for Invoice</h3>
-          <a class="btn btn-primary py-3 px-5" href="documents/create_invoice.php?id=1"> Friends Enterprises</a>
-          <a class="btn btn-primary py-3 px-5" href="documents/create_invoice.php?id=2"> Oshin Service</a>
-
-
-        </div>
-
-        <div style="display: none;" id="quote">
-          <h3>Select Organization for Quotation</h3>
-          <a class="btn btn-primary py-3 px-5" href="documents/create_quote.php?id=1"> Friends Enterprises</a>
-          <a class="btn btn-primary py-3 px-5" href="documents/create_quote.php?id=2"> Oshin Service</a>
-
-        </div>
-        <p>&nbsp;</p>
-      </div>
+        <button type="submit" class="btn btn-primary py-3 px-5">Sign In</button>
+      </form>
+      <p class="small text-muted mt-3 mb-0">Invoice &amp; Quotation Generator</p>
 
       <a href="#"
         style="display: inline-block; margin-top: 10px; padding: 5px 10px; background-color: #dc3545; color: #fff; text-decoration: none; border-radius: 3px;">Close</a>
