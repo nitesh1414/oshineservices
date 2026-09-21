@@ -29,24 +29,35 @@ Make sure `documents/storage/` is writable by PHP – it is only used for
 dompdf's font cache and temporary files, never for document data. If it is not
 writable the application still works, it simply renders a little slower.
 
-## Signing in
+## Signing in and the admin password
 
 The **Admin** button on the website opens the sign-in popup. The password is
 verified on the server (`documents/login.php`), not in the browser.
 
-Change the password in `documents/config/settings.php`:
+The password is configured in `documents/config/settings.php`:
 
 ```php
 'admin_password' => '1234',
 ```
 
-You may also store a hash instead of the plain password:
+`1234` is only the initial value – the dashboard shows a red notice until it
+has been changed. **Change it from the admin panel** (Dashboard → *Change
+password*, or `documents/password.php`): after confirming the current password
+the new one is written back to `settings.php` as a bcrypt `password_hash()`
+string, so the plain password is never stored. The dashboard also tells you
+whether the file is writable and whether the stored value is still plain text.
 
-```php
-'admin_password' => password_hash('my-secret', PASSWORD_DEFAULT),
-```
+Requirements / notes:
 
-(generate the hash once and paste the resulting `$2y$...` string).
+* `documents/config/settings.php` must be writable by PHP for changes made in
+  the panel to be saved. If it is not, the page explains this and, after a
+  change attempt, shows the ready-made hash line you can paste into the file
+  manually.
+* **Forgot the password?** Edit `settings.php` on the server, set
+  `'admin_password'` to a temporary plain-text value, sign in with it and then
+  change it from the panel.
+* Failed attempts are slowed down progressively; the change-password form is
+  protected against cross-site request forgery.
 
 ## Editing organization details
 
@@ -62,6 +73,7 @@ documents/
 ├── index.php              dashboard / sign-in
 ├── login.php              sign-in handler for the website popup
 ├── logout.php
+├── password.php           change the admin password (writes the hash to config/settings.php)
 ├── create_invoice.php     invoice form + PDF   (?id=1|2)
 ├── create_quote.php       quotation form + PDF (?id=1|2)
 ├── assets/                UI stylesheet and JavaScript
@@ -69,7 +81,7 @@ documents/
 ├── includes/              bootstrap, helpers, Document model, PDF streaming, controller
 ├── templates/
 │   ├── layout/            page shell
-│   ├── pages/             dashboard, login
+│   ├── pages/             dashboard, login, password
 │   ├── forms/             document entry form
 │   └── pdf/               invoice / quotation PDF templates
 ├── images/                logos and stamps used in the PDFs

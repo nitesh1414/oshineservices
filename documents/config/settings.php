@@ -13,8 +13,13 @@ return [
 
     /*
      * Admin password used by the "Admin" sign-in on the website.
-     * Either a plain-text value or a password_hash() string, e.g.
-     *   php -r "echo password_hash('my-secret', PASSWORD_DEFAULT);"
+     *
+     * Change it from the admin panel (Dashboard → Change password): the new
+     * password is written back to this entry as a secure password_hash()
+     * string, so this file must be writable by the web server.
+     *
+     * A plain-text value is also accepted here, which is handy for a reset:
+     * set it to e.g. 'temporary-123', sign in, then change it from the panel.
      */
     'admin_password' => '1234',
 

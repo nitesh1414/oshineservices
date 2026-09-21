@@ -20,6 +20,13 @@ $types = [
     <div class="alert alert-warning" role="alert"><?= e($notice) ?></div>
 <?php endif; ?>
 
+<?php if (admin_password_is_default()): ?>
+    <div class="alert alert-danger alert-default-password d-flex flex-wrap align-items-center justify-content-between gap-2" role="alert">
+        <span><strong>Security notice:</strong> the admin panel still uses the default password. Please set your own password before using the generator.</span>
+        <a class="btn btn-danger btn-sm" href="password.php">Change password now</a>
+    </div>
+<?php endif; ?>
+
 <?php foreach ($types as $type): ?>
     <section class="type-section">
         <h2><span class="ico"><?= $type['icon'] ?></span><?= e($type['label']) ?></h2>
@@ -40,6 +47,16 @@ $types = [
         </div>
     </section>
 <?php endforeach; ?>
+
+<div class="docs-card">
+    <div class="docs-card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div class="text-small">
+            <strong class="text-dark">Admin password</strong><br>
+            <span class="text-muted">Stored in <code>documents/config/settings.php</code> as a secure hash. Change it whenever needed.</span>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm" href="password.php">Change password</a>
+    </div>
+</div>
 
 <div class="docs-card">
     <div class="docs-card-body text-small text-muted">

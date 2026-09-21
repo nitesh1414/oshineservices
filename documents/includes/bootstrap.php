@@ -5,6 +5,8 @@
  */
 
 define('APP_ROOT', dirname(__DIR__));
+// Password the application ships with; the dashboard warns until it has been changed.
+define('DEFAULT_ADMIN_PASSWORD', '1234');
 
 $settings      = require APP_ROOT . '/config/settings.php';
 $organizations = require APP_ROOT . '/config/organizations.php';

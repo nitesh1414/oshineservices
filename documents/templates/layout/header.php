@@ -36,6 +36,7 @@ $bodyClass = $bodyClass ?? '';
             <?php endif; ?>
             <?php if (is_logged_in()): ?>
                 <a class="docs-link d-none d-md-inline" href="index.php">Dashboard</a>
+                <a class="docs-link d-none d-md-inline" href="password.php">Change password</a>
                 <a class="docs-link d-none d-md-inline" href="<?= e($settings['site_url']) ?>">Website</a>
                 <a class="btn btn-sm btn-outline-light" href="logout.php">Sign out</a>
             <?php else: ?>

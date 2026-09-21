@@ -185,19 +185,52 @@ function is_logged_in(): bool
     return !empty($_SESSION['osdocs_admin']);
 }
 
-function login_with_password(string $password): bool
+/**
+ * True when the configured value is a password_hash() string rather than plain text.
+ */
+function password_is_hashed(string $value): bool
+{
+    return (bool) preg_match('/^\$(2y|2a|2b|argon2id?)\$/', $value);
+}
+
+/**
+ * Check a password against the configured admin password (config/settings.php).
+ * Plain-text and password_hash() values are both supported.
+ */
+function verify_admin_password(string $password): bool
 {
     global $settings;
-    $expected = (string) $settings['admin_password'];
+    $expected = (string) ($settings['admin_password'] ?? '');
 
-    $ok = false;
-    if ($expected !== '') {
-        if (preg_match('/^\$(2y|argon2id?|2a|2b)\$/', $expected)) {
-            $ok = password_verify($password, $expected);
-        } else {
-            $ok = hash_equals($expected, $password);
-        }
+    if ($expected === '' || $password === '') {
+        return false;
     }
+    if (password_is_hashed($expected)) {
+        return password_verify($password, $expected);
+    }
+    return hash_equals($expected, $password);
+}
+
+/**
+ * True while the password shipped with the application is still in use.
+ */
+function admin_password_is_default(): bool
+{
+    return verify_admin_password(DEFAULT_ADMIN_PASSWORD);
+}
+
+/**
+ * Record a failed password attempt and slow the response down (brute-force protection).
+ */
+function register_failed_password_attempt(): void
+{
+    $_SESSION['osdocs_failed'] = ($_SESSION['osdocs_failed'] ?? 0) + 1;
+    usleep(min(5, (int) $_SESSION['osdocs_failed']) * 300000);
+}
+
+function login_with_password(string $password): bool
+{
+    $ok = verify_admin_password($password);
 
     if ($ok) {
         session_regenerate_id(true);
@@ -205,11 +238,140 @@ function login_with_password(string $password): bool
         $_SESSION['osdocs_login_at'] = time();
         unset($_SESSION['osdocs_failed']);
     } else {
-        $_SESSION['osdocs_failed'] = ($_SESSION['osdocs_failed'] ?? 0) + 1;
-        // Slow down brute-force attempts.
-        usleep(min(5, $_SESSION['osdocs_failed']) * 300000);
+        register_failed_password_attempt();
     }
     return $ok;
+}
+
+// ---------------------------------------------------------------------------
+// Admin password management (stored in config/settings.php, never plain text
+// once changed from the admin panel)
+// ---------------------------------------------------------------------------
+
+function settings_file(): string
+{
+    return APP_ROOT . '/config/settings.php';
+}
+
+function settings_file_is_writable(): bool
+{
+    $file = settings_file();
+    return is_file($file) && is_writable($file);
+}
+
+/**
+ * Replace the 'admin_password' entry in config/settings.php with a password_hash()
+ * of the new password. The file is rewritten atomically (temporary file + rename)
+ * whenever the directory allows it, and the result is verified before use.
+ *
+ * @return array{ok: bool, error: string, hash: string}
+ */
+function update_admin_password(string $newPassword): array
+{
+    global $settings;
+
+    $file   = settings_file();
+    $hash   = password_hash($newPassword, PASSWORD_DEFAULT);
+    $result = ['ok' => false, 'error' => '', 'hash' => $hash];
+
+    if (!is_file($file) || !is_readable($file)) {
+        $result['error'] = 'The settings file (documents/config/settings.php) could not be read.';
+        return $result;
+    }
+    if (!is_writable($file)) {
+        $result['error'] = 'The settings file (documents/config/settings.php) is not writable by the web server, so the password could not be saved.';
+        return $result;
+    }
+
+    $source  = (string) file_get_contents($file);
+    $count   = 0;
+    $updated = preg_replace_callback(
+        "/('admin_password'\\s*=>\\s*)(?:'(?:[^'\\\\]|\\\\.)*'|\"(?:[^\"\\\\]|\\\\.)*\")/",
+        static function (array $m) use ($hash): string {
+            return $m[1] . "'" . $hash . "'";
+        },
+        $source,
+        1,
+        $count
+    );
+
+    if ($updated === null || $count !== 1) {
+        $result['error'] = "The 'admin_password' entry could not be located in documents/config/settings.php.";
+        return $result;
+    }
+
+    // Syntax guard (the replacement only swaps one quoted string, but never take chances with a config file).
+    if (function_exists('token_get_all')) {
+        try {
+            token_get_all($updated, TOKEN_PARSE);
+        } catch (ParseError $e) {
+            $result['error'] = 'The updated settings file would not be valid PHP; nothing was changed.';
+            return $result;
+        }
+    }
+
+    $dir     = dirname($file);
+    $written = false;
+
+    if (is_writable($dir)) {
+        // Atomic replace: write next to the original, verify, then rename over it.
+        $tmp = $dir . '/.settings-' . bin2hex(random_bytes(6)) . '.tmp.php';
+        if (file_put_contents($tmp, $updated, LOCK_EX) !== false) {
+            $check = (static function (string $path) {
+                try {
+                    return include $path;
+                } catch (Throwable $e) {
+                    return null;
+                }
+            })($tmp);
+
+            if (is_array($check) && ($check['admin_password'] ?? null) === $hash) {
+                @chmod($tmp, fileperms($file) & 0777);
+                $written = @rename($tmp, $file);
+            }
+            if (!$written) {
+                @unlink($tmp);
+            }
+        }
+    }
+
+    if (!$written) {
+        // Directory not writable (or rename refused): rewrite the file in place.
+        $written = file_put_contents($file, $updated, LOCK_EX) !== false;
+    }
+
+    if (!$written) {
+        $result['error'] = 'The settings file could not be written. Check the file permissions of documents/config/settings.php.';
+        return $result;
+    }
+
+    if (function_exists('opcache_invalidate')) {
+        @opcache_invalidate($file, true);
+    }
+    clearstatcache(true, $file);
+
+    $settings['admin_password'] = $hash;
+    $result['ok'] = true;
+    return $result;
+}
+
+// ---------------------------------------------------------------------------
+// CSRF protection for state-changing forms
+// ---------------------------------------------------------------------------
+
+function csrf_token(): string
+{
+    if (empty($_SESSION['osdocs_csrf'])) {
+        $_SESSION['osdocs_csrf'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['osdocs_csrf'];
+}
+
+function csrf_verify($token): bool
+{
+    return is_string($token)
+        && !empty($_SESSION['osdocs_csrf'])
+        && hash_equals($_SESSION['osdocs_csrf'], $token);
 }
 
 function logout(): void
@@ -247,7 +409,7 @@ function require_login(): void
 function safe_next(?string $next): string
 {
     $next = (string) $next;
-    if ($next === '' || !preg_match('#^(create_invoice|create_quote)\.php(\?id=\d+)?$#', $next)) {
+    if ($next === '' || !preg_match('#^(?:(?:create_invoice|create_quote)\.php(?:\?id=\d+)?|password\.php)$#', $next)) {
         return 'index.php';
     }
     return $next;
